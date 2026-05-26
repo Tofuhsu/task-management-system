@@ -1,0 +1,21 @@
+# .NET
+bin/
+obj/
+
+# Node
+node_modules/
+dist/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# User files
+*.user
+*.suo
+
+# OS
+.DS_Store
+Thumbs.db
