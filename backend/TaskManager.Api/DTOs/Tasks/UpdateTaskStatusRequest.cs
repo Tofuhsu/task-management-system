@@ -6,5 +6,6 @@ namespace TaskManager.Api.DTOs.Tasks;
 public class UpdateTaskStatusRequest
 {
     [Required]
-    public TaskItemStatus Status { get; set; }
+    [EnumDataType(typeof(TaskItemStatus))]
+    public TaskItemStatus? Status { get; set; }
 }

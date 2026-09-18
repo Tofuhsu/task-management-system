@@ -1,0 +1,4 @@
+# Local SQLite development database
+*.db
+*.db-shm
+*.db-wal

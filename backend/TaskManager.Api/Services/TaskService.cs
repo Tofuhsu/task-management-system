@@ -10,18 +10,25 @@ namespace TaskManager.Api.Services;
 public class TaskService : ITaskService
 {
     private readonly AppDbContext _context;
+    private readonly ILogger<TaskService> _logger;
 
-    public TaskService(AppDbContext context)
+    public TaskService(AppDbContext context, ILogger<TaskService> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
-    public async Task<PagedResult<TaskResponse>> SearchAsync(TaskQueryParameters query)
+    public async Task<PagedResult<TaskResponse>> SearchAsync(
+        int userId,
+        TaskQueryParameters query,
+        CancellationToken cancellationToken)
     {
-        var page = query.Page < 1 ? 1 : query.Page;
-        var pageSize = query.PageSize < 1 ? 10 : Math.Min(query.PageSize, 100);
+        var page = query.Page;
+        var pageSize = query.PageSize;
 
-        var dbQuery = _context.TaskItems.AsNoTracking().AsQueryable();
+        var dbQuery = _context.TaskItems
+            .AsNoTracking()
+            .Where(task => task.UserId == userId);
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -53,7 +60,7 @@ public class TaskService : ITaskService
 
         dbQuery = ApplySorting(dbQuery, query.SortBy, query.SortDirection);
 
-        var totalCount = await dbQuery.CountAsync();
+        var totalCount = await dbQuery.CountAsync(cancellationToken);
 
         var items = await dbQuery
             .Skip((page - 1) * pageSize)
@@ -70,7 +77,7 @@ public class TaskService : ITaskService
                 CreatedAt = t.CreatedAt,
                 UpdatedAt = t.UpdatedAt
             })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         return new PagedResult<TaskResponse>
         {
@@ -82,11 +89,16 @@ public class TaskService : ITaskService
         };
     }
 
-    public async Task<TaskResponse?> GetByIdAsync(int id)
+    public async Task<TaskResponse?> GetByIdAsync(
+        int userId,
+        int id,
+        CancellationToken cancellationToken)
     {
         var task = await _context.TaskItems
             .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == id);
+            .FirstOrDefaultAsync(
+                task => task.Id == id && task.UserId == userId,
+                cancellationToken);
 
         if (task == null)
         {
@@ -96,14 +108,18 @@ public class TaskService : ITaskService
         return ToResponse(task);
     }
 
-    public async Task<TaskResponse> CreateAsync(CreateTaskRequest request)
+    public async Task<TaskResponse> CreateAsync(
+        int userId,
+        CreateTaskRequest request,
+        CancellationToken cancellationToken)
     {
         var status = ResolveStatus(request.IsCompleted, request.Status);
 
         var entity = new TaskItem
         {
+            UserId = userId,
             Title = request.Title.Trim(),
-            Description = request.Description?.Trim(),
+            Description = NormalizeOptionalText(request.Description),
             IsCompleted = status == TaskItemStatus.Done,
             Status = status,
             Priority = request.Priority,
@@ -113,14 +129,27 @@ public class TaskService : ITaskService
         };
 
         _context.TaskItems.Add(entity);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Created task {TaskId} for user {UserId} with status {Status} and priority {Priority}",
+            entity.Id,
+            userId,
+            entity.Status,
+            entity.Priority);
 
         return ToResponse(entity);
     }
 
-    public async Task<bool> UpdateAsync(int id, UpdateTaskRequest request)
+    public async Task<bool> UpdateAsync(
+        int userId,
+        int id,
+        UpdateTaskRequest request,
+        CancellationToken cancellationToken)
     {
-        var task = await _context.TaskItems.FirstOrDefaultAsync(t => t.Id == id);
+        var task = await _context.TaskItems.FirstOrDefaultAsync(
+            candidate => candidate.Id == id && candidate.UserId == userId,
+            cancellationToken);
         if (task == null)
         {
             return false;
@@ -129,70 +158,113 @@ public class TaskService : ITaskService
         var status = ResolveStatus(request.IsCompleted, request.Status);
 
         task.Title = request.Title.Trim();
-        task.Description = request.Description?.Trim();
+        task.Description = NormalizeOptionalText(request.Description);
         task.IsCompleted = status == TaskItemStatus.Done;
         task.Status = status;
         task.Priority = request.Priority;
         task.DueDate = request.DueDate;
         task.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Updated task {TaskId} for user {UserId} with status {Status} and priority {Priority}",
+            task.Id,
+            userId,
+            task.Status,
+            task.Priority);
+
         return true;
     }
 
-    public async Task<bool> DeleteAsync(int id)
+    public async Task<bool> DeleteAsync(
+        int userId,
+        int id,
+        CancellationToken cancellationToken)
     {
-        var task = await _context.TaskItems.FirstOrDefaultAsync(t => t.Id == id);
+        var task = await _context.TaskItems.FirstOrDefaultAsync(
+            candidate => candidate.Id == id && candidate.UserId == userId,
+            cancellationToken);
         if (task == null)
         {
             return false;
         }
 
         _context.TaskItems.Remove(task);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Deleted task {TaskId} for user {UserId}",
+            task.Id,
+            userId);
+
         return true;
     }
 
-    public async Task<bool> UpdateStatusAsync(int id, UpdateTaskStatusRequest request)
+    public async Task<bool> UpdateStatusAsync(
+        int userId,
+        int id,
+        UpdateTaskStatusRequest request,
+        CancellationToken cancellationToken)
     {
-        var task = await _context.TaskItems.FirstOrDefaultAsync(t => t.Id == id);
+        var task = await _context.TaskItems.FirstOrDefaultAsync(
+            candidate => candidate.Id == id && candidate.UserId == userId,
+            cancellationToken);
         if (task == null)
         {
             return false;
         }
 
-        task.Status = request.Status;
-        task.IsCompleted = request.Status == TaskItemStatus.Done;
+        var status = request.Status!.Value;
+
+        task.Status = status;
+        task.IsCompleted = status == TaskItemStatus.Done;
         task.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Changed task {TaskId} status to {Status} for user {UserId}",
+            task.Id,
+            task.Status,
+            userId);
+
         return true;
     }
 
-    public async Task<TaskSummaryResponse> GetSummaryAsync()
+    public async Task<TaskSummaryResponse> GetSummaryAsync(
+        int userId,
+        CancellationToken cancellationToken)
     {
         var today = DateTime.UtcNow.Date;
         var tomorrow = today.AddDays(1);
 
-        return new TaskSummaryResponse
-        {
-            TotalCount = await _context.TaskItems.CountAsync(),
-            TodoCount = await _context.TaskItems.CountAsync(t => t.Status == TaskItemStatus.Todo),
-            InProgressCount = await _context.TaskItems.CountAsync(t => t.Status == TaskItemStatus.InProgress),
-            DoneCount = await _context.TaskItems.CountAsync(t => t.Status == TaskItemStatus.Done),
-            ArchivedCount = await _context.TaskItems.CountAsync(t => t.Status == TaskItemStatus.Archived),
-            OverdueCount = await _context.TaskItems.CountAsync(t =>
-                t.DueDate != null &&
-                t.DueDate < today &&
-                t.Status != TaskItemStatus.Done &&
-                t.Status != TaskItemStatus.Archived),
-            DueTodayCount = await _context.TaskItems.CountAsync(t =>
-                t.DueDate != null &&
-                t.DueDate >= today &&
-                t.DueDate < tomorrow &&
-                t.Status != TaskItemStatus.Done &&
-                t.Status != TaskItemStatus.Archived)
-        };
+        var summary = await _context.TaskItems
+            .AsNoTracking()
+            .Where(task => task.UserId == userId)
+            .GroupBy(_ => 1)
+            .Select(group => new TaskSummaryResponse
+            {
+                TotalCount = group.Count(),
+                TodoCount = group.Count(t => t.Status == TaskItemStatus.Todo),
+                InProgressCount = group.Count(t => t.Status == TaskItemStatus.InProgress),
+                DoneCount = group.Count(t => t.Status == TaskItemStatus.Done),
+                ArchivedCount = group.Count(t => t.Status == TaskItemStatus.Archived),
+                OverdueCount = group.Count(t =>
+                    t.DueDate != null &&
+                    t.DueDate < today &&
+                    t.Status != TaskItemStatus.Done &&
+                    t.Status != TaskItemStatus.Archived),
+                DueTodayCount = group.Count(t =>
+                    t.DueDate != null &&
+                    t.DueDate >= today &&
+                    t.DueDate < tomorrow &&
+                    t.Status != TaskItemStatus.Done &&
+                    t.Status != TaskItemStatus.Archived)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return summary ?? new TaskSummaryResponse();
     }
 
     private static IQueryable<TaskItem> ApplySorting(
@@ -235,6 +307,12 @@ public class TaskService : ITaskService
         }
 
         return isCompleted ? TaskItemStatus.Done : TaskItemStatus.Todo;
+    }
+
+    private static string? NormalizeOptionalText(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
 
     private static TaskResponse ToResponse(TaskItem task)

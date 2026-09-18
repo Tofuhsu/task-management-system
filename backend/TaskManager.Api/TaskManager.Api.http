@@ -1,6 +1,64 @@
 @TaskManager.Api_HostAddress = http://localhost:5100
 
-GET {{TaskManager.Api_HostAddress}}/weatherforecast/
+### Register (the REST client keeps the returned auth cookie)
+POST {{TaskManager.Api_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "developer@example.com",
+  "password": "ChangeThisPassword123!"
+}
+
+###
+
+### Sign in
+POST {{TaskManager.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "developer@example.com",
+  "password": "ChangeThisPassword123!"
+}
+
+###
+
+### Current user
+GET {{TaskManager.Api_HostAddress}}/api/auth/me
 Accept: application/json
 
 ###
+
+### List tasks
+GET {{TaskManager.Api_HostAddress}}/api/tasks?page=1&pageSize=10&sortBy=CreatedAt&sortDirection=desc
+Accept: application/json
+
+###
+
+### Create a task
+POST {{TaskManager.Api_HostAddress}}/api/tasks
+Content-Type: application/json
+
+{
+  "title": "Prepare deployment",
+  "description": "Add CI and container support",
+  "status": "Todo",
+  "priority": "High",
+  "dueDate": "2026-10-01T23:59:59Z"
+}
+
+###
+
+### Validation example (returns 400 Problem Details)
+GET {{TaskManager.Api_HostAddress}}/api/tasks?page=0&pageSize=500&sortBy=Unknown
+Accept: application/problem+json
+
+###
+
+### Summary
+GET {{TaskManager.Api_HostAddress}}/api/tasks/summary
+Accept: application/json
+
+###
+
+### Sign out
+POST {{TaskManager.Api_HostAddress}}/api/auth/logout

@@ -12,6 +12,12 @@ dist/
 # Logs
 *.log
 
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+
 # User files
 *.user
 *.suo
