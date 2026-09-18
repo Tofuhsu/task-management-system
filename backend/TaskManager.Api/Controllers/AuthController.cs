@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TaskManager.Api.DTOs.Auth;
 using TaskManager.Api.Infrastructure;
 using TaskManager.Api.Services.Interfaces;
@@ -10,6 +11,7 @@ namespace TaskManager.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+[EnableRateLimiting("auth")]
 public sealed class AuthController(
     IAuthService authService,
     IWebHostEnvironment environment) : ControllerBase

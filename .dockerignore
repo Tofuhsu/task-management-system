@@ -1,0 +1,16 @@
+.git
+.github
+**/.DS_Store
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/.env
+**/.env.*
+!**/.env.example
+**/appsettings.Local.json
+**/*.user
+**/*.suo

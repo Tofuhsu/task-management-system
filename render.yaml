@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: task-management-system
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_HTTP_PORTS
+        value: 10000
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
+      - key: DatabaseProvider
+        value: SqlServer
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: Jwt__Issuer
+        value: TaskManager.Api
+      - key: Jwt__Audience
+        value: TaskManager.Web
+      - key: Jwt__ExpirationMinutes
+        value: 60
+      - key: Jwt__SigningKey
+        generateValue: true
