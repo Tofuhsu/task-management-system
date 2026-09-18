@@ -1,3 +1,4 @@
+[![CI](https://github.com/Tofuhsu/task-management-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Tofuhsu/task-management-system/actions/workflows/ci.yml)
 # Task Management System
 
 A full-stack, multi-user task dashboard built with ASP.NET Core, Entity Framework Core, Vue 3, and TypeScript. Users can register, sign in, and manage a private workspace with server-side search, filtering, sorting, pagination, and status summaries.
