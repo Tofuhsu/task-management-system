@@ -82,43 +82,14 @@ task-management-system/
 
 ## Features
 
-### Authentication
-
-* Account registration
-* Email and password login
-* Logout
-* Current-user session endpoint
+* Registration, login, logout, and a current-user session endpoint
 * Case-insensitive duplicate email prevention
-* Salted password hashing
 * JWT validation for signature, issuer, audience, lifetime, and expiration
-* Browser authentication through an `HttpOnly` cookie
-* Standard `Authorization: Bearer` support for non-browser clients
-
-### Task Management
-
-* Create, read, update, and delete tasks
-* Change task status independently
-* Private per-user task workspaces
-* Keyword search
-* Status and priority filters
-* Due-date range filters
-* Server-side pagination
-* Allow-listed sorting
-* Dashboard summary counts
+* `Authorization: Bearer` support for non-browser clients
+* Independent task status changes
+* Status, priority, and due-date range filters
 * Overdue and due-today calculations
-
-### Frontend
-
-* Registration and login forms
-* Authenticated task dashboard
-* Create and edit task forms
-* Status and priority controls
-* Search and filtering
-* Pagination
-* Loading and empty states
-* Client-side validation
-* API error handling
-* Responsive layout
+* Vue 3 pages for registration, login, the task dashboard, and create/edit forms
 
 ## Run Locally
 
@@ -385,11 +356,3 @@ Each task belongs to exactly one user. Deleting a user also deletes that user's 
 * Cloud deployment
 * Documented performance and load-test measurements
 * Expanded unit and integration test coverage
-
-## Author
-
-**Jeff (Hsuan-Fu) Hsu**
-
-* GitHub: [Tofuhsu](https://github.com/Tofuhsu)
-* Portfolio: [tofuhsu.github.io](https://tofuhsu.github.io/)
-* LinkedIn: [hsuan-fu-hsu](https://www.linkedin.com/in/hsuan-fu-hsu/)
