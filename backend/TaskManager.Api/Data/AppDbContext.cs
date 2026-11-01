@@ -67,7 +67,11 @@ public class AppDbContext : DbContext
             entity.HasIndex(x => x.DueDate);
             entity.HasIndex(x => x.CreatedAt);
             entity.HasIndex(x => new { x.Status, x.Priority, x.DueDate });
-            entity.HasIndex(x => new { x.UserId, x.CreatedAt });
+            // Search filters on Title/Description inside one user's rows. Without these
+            // included columns SQL Server preferred a clustered scan of the whole table
+            // (all users) for the COUNT(*) over a LIKE '%term%' predicate.
+            entity.HasIndex(x => new { x.UserId, x.CreatedAt })
+                .IncludeProperties(x => new { x.Title, x.Description });
             entity.HasIndex(x => new { x.UserId, x.Status, x.Priority, x.DueDate });
         });
     }
