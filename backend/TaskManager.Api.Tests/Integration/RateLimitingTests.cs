@@ -4,9 +4,10 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using TaskManager.Api.Configuration;
+using TaskManager.Api.Tests.Infrastructure;
 using Xunit;
 
-namespace TaskManager.Api.Tests;
+namespace TaskManager.Api.Tests.Integration;
 
 public sealed class RateLimitingTests(TaskManagerApiFactory factory)
     : IClassFixture<TaskManagerApiFactory>

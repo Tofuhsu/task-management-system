@@ -7,12 +7,13 @@ using TaskManager.Api.DTOs;
 using TaskManager.Api.DTOs.Auth;
 using TaskManager.Api.DTOs.Tasks;
 using TaskManager.Api.Models;
+using TaskManager.Api.Tests.Infrastructure;
 using Xunit;
 
-namespace TaskManager.Api.Tests;
+namespace TaskManager.Api.Tests.Integration;
 
-public sealed class AuthenticationAndOwnershipTests(
-    TaskManagerApiFactory factory) : IClassFixture<TaskManagerApiFactory>
+/// <summary>Runs on SQLite by default and on SQL Server via <see cref="SqlServerAuthenticationAndOwnershipTests"/>.</summary>
+public abstract class AuthenticationAndOwnershipTestsBase(ApiFactoryBase factory)
 {
     private const string ValidPassword = "Portfolio-Test-Password-123!";
     private static readonly JsonSerializerOptions JsonOptions =
@@ -180,3 +181,10 @@ public sealed class AuthenticationAndOwnershipTests(
     private static string UniqueEmail(string prefix) =>
         $"{prefix}-{Guid.NewGuid():N}@example.com";
 }
+
+public sealed class SqliteAuthenticationAndOwnershipTests(TaskManagerApiFactory factory)
+    : AuthenticationAndOwnershipTestsBase(factory), IClassFixture<TaskManagerApiFactory>;
+
+[Trait("Category", "SqlServer")]
+public sealed class SqlServerAuthenticationAndOwnershipTests(SqlServerApiFactory factory)
+    : AuthenticationAndOwnershipTestsBase(factory), IClassFixture<SqlServerApiFactory>;

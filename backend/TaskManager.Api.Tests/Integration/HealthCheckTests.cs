@@ -1,8 +1,9 @@
 using System.Net;
 using System.Text.Json;
+using TaskManager.Api.Tests.Infrastructure;
 using Xunit;
 
-namespace TaskManager.Api.Tests;
+namespace TaskManager.Api.Tests.Integration;
 
 public sealed class HealthCheckTests(TaskManagerApiFactory factory)
     : IClassFixture<TaskManagerApiFactory>
