@@ -1,9 +1,7 @@
 using System.Text;
-using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text.Json.Serialization;
@@ -56,21 +54,15 @@ builder.Services.AddProblemDetails(options =>
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseHealthCheck>("database");
+    .AddCheck<DatabaseHealthCheck>("database", tags: [HealthEndpoints.ReadyTag]);
 
+builder.Services.Configure<AuthRateLimitOptions>(
+    builder.Configuration.GetSection(AuthRateLimitOptions.SectionName));
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("auth", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 20,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0,
-                AutoReplenishment = true
-            }));
+    options.OnRejected = AuthRateLimiting.WriteRejectionAsync;
+    options.AddPolicy(AuthRateLimitOptions.PolicyName, AuthRateLimiting.Partition);
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -230,7 +222,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapHealthEndpoints();
 
 app.Run();
 

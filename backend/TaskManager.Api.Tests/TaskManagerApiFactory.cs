@@ -20,7 +20,10 @@ public sealed class TaskManagerApiFactory : WebApplicationFactory<Program>
             ["Jwt__Audience"] = "TaskManager.Web.Tests",
             ["Jwt__SigningKey"] =
                 "integration-test-only-signing-key-with-more-than-32-characters",
-            ["Jwt__ExpirationMinutes"] = "60"
+            ["Jwt__ExpirationMinutes"] = "60",
+            // Shared test hosts register many users from one (null) client IP; the
+            // rate-limiting tests lower this explicitly.
+            ["RateLimiting__Auth__PermitLimit"] = "1000"
         };
 
     private readonly IReadOnlyDictionary<string, string?> _originalEnvironmentVariables;
