@@ -1,0 +1,55 @@
+# Local stack: production image of the API + SPA, backed by SQL Server.
+# Usage:
+#   cp .env.example .env   # then fill in the two secrets
+#   docker compose up --build
+# The app is served at http://localhost:${API_PORT:-8080} (TLS is terminated by the hosting
+# platform in production, so the container itself only listens on HTTP).
+
+services:
+  db:
+    # SQL Server images are amd64-only; on Apple Silicon Docker Desktop runs
+    # them through Rosetta emulation.
+    image: mcr.microsoft.com/mssql/server:2022-CU16-ubuntu-22.04
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:1433:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  api:
+    build: .
+    # Set API_IMAGE to benchmark a specific, already-built image (with --no-build).
+    image: ${API_IMAGE:-task-management-system:local}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      DatabaseProvider: SqlServer
+      ConnectionStrings__DefaultConnection: >-
+        Server=db,1433;Database=TaskManagerDb;User ID=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True
+      Jwt__Issuer: TaskManager.Api
+      Jwt__Audience: TaskManager.Web
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
+      Jwt__ExpirationMinutes: "60"
+      RateLimiting__Auth__PermitLimit: ${AUTH_RATE_LIMIT:-10}
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    # No container healthcheck: the aspnet runtime image ships without curl or
+    # bash. Probe http://localhost:${API_PORT:-8080}/health/live from outside instead.
+
+volumes:
+  mssql-data:
