@@ -1,7 +1,9 @@
 # Upgrade Plan (2026-11)
 
-Status: **proposal, awaiting approval**. Nothing here has been pushed, deployed, or
-reflected in the public README yet.
+Status: items 1–5 **approved on 2026-11-01 and implemented on the local branch
+`upgrade/2026-11-plan`** (not pushed). Items 6 and up were not done. Results are in
+[PERFORMANCE.md](PERFORMANCE.md); the "Current state" table below describes the code
+*before* this work.
 
 Scope rule: this project is secondary to embedded/AI work, so the plan targets a small
 number of upgrades that produce *measurable, interview-defensible* evidence for a

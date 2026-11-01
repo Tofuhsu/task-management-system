@@ -15,11 +15,16 @@ Users can register, sign in, and manage a private task workspace with server-sid
 * Server-side pagination, search, filtering, and allow-listed sorting
 * Dashboard summaries generated with an aggregate database query
 * Request validation with field-level Problem Details responses
+* Per-IP sliding-window rate limiting on login and registration (`429` + `Retry-After`)
+* Liveness (`/health/live`) and readiness (`/health/ready`) endpoints
 * Centralized exception handling and structured logging
 * SQLite for zero-setup local development
 * SQL Server provider and migration support
 * Responsive Vue 3 interface with loading, empty, validation, and API error states
-* ASP.NET Core integration tests using isolated temporary databases
+* Integration tests on isolated SQLite databases and on SQL Server via Testcontainers, which runs the real EF Core migrations
+* Unit tests for the task and token services, with a coverage report in CI
+* k6 load test with a seeded 50,000-task dataset and recorded results ([docs/PERFORMANCE.md](docs/PERFORMANCE.md))
+* Docker Compose stack (API + SQL Server) for local runs and load tests
 * GitHub Actions CI for backend tests and frontend security/build checks
 
 ## Tech Stack
@@ -31,7 +36,8 @@ Users can register, sign in, and manage a private task workspace with server-sid
 | Data Access    | Entity Framework Core 10                                      |
 | Databases      | SQLite for local development, SQL Server support              |
 | Frontend       | Vue 3, TypeScript, Axios, Vite                                |
-| Testing        | xUnit, ASP.NET Core `WebApplicationFactory`, isolated SQLite  |
+| Testing        | xUnit, `WebApplicationFactory`, SQLite, Testcontainers (SQL Server), coverlet |
+| Load testing   | k6                                                            |
 | CI             | GitHub Actions                                                |
 
 ## Architecture
@@ -167,40 +173,48 @@ http://localhost:5173
 
 Register an account and create your first task.
 
+### Alternative: Docker Compose with SQL Server
+
+Runs the production image (API + built Vue app) against SQL Server 2022:
+
+```bash
+cp .env.example .env   # then fill in MSSQL_SA_PASSWORD and JWT_SIGNING_KEY
+docker compose up --build
+```
+
+Open `http://localhost:8080` (or the `API_PORT` from `.env`). The SQL Server image is
+amd64-only, so on Apple Silicon Docker Desktop runs it under Rosetta emulation.
+
 ## Automated Tests
 
-The integration test suite starts the real ASP.NET Core application in memory and uses a unique temporary SQLite database.
+The suite has three layers:
 
-It does not require:
+* **Unit tests** call `TaskService` (on in-memory SQLite, so the LINQ is translated by a
+  real relational provider) and `JwtTokenService` directly.
+* **SQLite integration tests** start the real ASP.NET Core application in memory with a
+  unique temporary SQLite database.
+* **SQL Server integration tests** start SQL Server 2022 in Docker with Testcontainers,
+  apply the EF Core migrations exactly as production does, check that the migration
+  snapshot matches the model, and rerun the authentication and ownership tests.
 
-* A running API
-* A local JWT secret
-* SQL Server
-* Access to the development `taskmanager.db`
-
-Run the tests with:
+No running API, local JWT secret, or development database is required.
 
 ```bash
 cd backend
-dotnet test TaskManager.sln
+dotnet test TaskManager.sln                              # everything (needs Docker)
+dotnet test TaskManager.sln --filter "Category!=SqlServer"   # without Docker
 ```
 
-The test suite verifies:
+Covered behavior includes:
 
 1. Unauthenticated users cannot access protected task endpoints.
 2. Registration returns a secure `HttpOnly`, `SameSite=Strict` cookie.
-3. Incorrect passwords are rejected.
-4. Duplicate emails are rejected regardless of letter case.
-5. One user cannot read, update, change, or delete another user's task.
-
-Expected result:
-
-```text
-Total tests: 5
-Passed: 5
-Failed: 0
-Skipped: 0
-```
+3. Incorrect passwords are rejected, and duplicate emails are rejected regardless of letter case.
+4. One user cannot read, update, change, or delete another user's task.
+5. Credential attempts over the limit return `429` with `Retry-After`, while `/api/auth/me` stays available.
+6. Liveness does not depend on the database; readiness reports the database check.
+7. All migrations apply to SQL Server and no model changes are missing from them.
+8. Task status resolution, search, filtering, sorting, paging, and dashboard boundaries.
 
 ## Continuous Integration
 
@@ -210,7 +224,8 @@ GitHub Actions runs automatically on every push and pull request to `main`.
 
 * Restores NuGet packages
 * Builds the .NET solution in Release mode
-* Runs all integration tests
+* Runs unit and integration tests, including SQL Server through Testcontainers
+* Publishes a code coverage summary and uploads the HTML coverage report
 
 ### Frontend Job
 
@@ -266,6 +281,22 @@ Supported sorting fields:
 
 The maximum page size is 100.
 
+## Performance
+
+A k6 load test (50 concurrent clients, mixed reads and writes, 50,000 seeded tasks)
+showed that search on SQL Server was scanning the entire task table. Making the per-user
+index cover `Title` and `Description` changed this, with everything measured on an
+Apple M4 Pro laptop with SQL Server under Docker emulation (mean of 3 runs):
+
+| | Before | After |
+| --- | --- | --- |
+| Throughput | 1,626 req/s | 3,216 req/s |
+| p95 latency, all requests | 73.6 ms | 28.6 ms |
+| p95 latency, search | 107.5 ms | 26.9 ms |
+
+The environment, dataset, workload, query plans, and raw results are in
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
 ## Validation and Error Handling
 
 Invalid requests return `400 application/problem+json` with field-level messages and a request trace ID.
@@ -305,7 +336,9 @@ Unexpected errors return a safe `500` response, while the original exception is 
 * Login errors do not reveal whether the email or password was incorrect.
 * Local JWT secrets and SQLite database files are excluded from Git.
 
-This account system is suitable for a portfolio application. A public production deployment should additionally consider managed OpenID Connect or OAuth, email verification, password recovery, login rate limiting, key rotation, and deployment-specific CSRF protection.
+* Login and registration are rate limited per client IP (sliding window, configurable under `RateLimiting:Auth`). The limiter is in memory, so the budget applies per instance.
+
+This account system is suitable for a portfolio application. A public production deployment should additionally consider managed OpenID Connect or OAuth, email verification, password recovery, a distributed rate limiter, key rotation, and deployment-specific CSRF protection.
 
 ## SQL Server Support
 
@@ -349,10 +382,7 @@ Each task belongs to exactly one user. Deleting a user also deletes that user's 
 
 ## Future Improvements
 
-* Login rate limiting
 * Email verification and password recovery
 * Managed OpenID Connect authentication option
-* Docker Compose development environment
-* Cloud deployment
-* Documented performance and load-test measurements
-* Expanded unit and integration test coverage
+* OpenTelemetry traces and metrics
+* Cloud deployment (configuration is in [DEPLOYMENT.md](DEPLOYMENT.md))
