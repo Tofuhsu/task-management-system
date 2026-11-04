@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using TaskManager.Api.Configuration;
 using TaskManager.Api.DTOs.Auth;
 using TaskManager.Api.Infrastructure;
 using TaskManager.Api.Services.Interfaces;
@@ -11,16 +12,17 @@ namespace TaskManager.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-[EnableRateLimiting("auth")]
 public sealed class AuthController(
     IAuthService authService,
     IWebHostEnvironment environment) : ControllerBase
 {
     [AllowAnonymous]
     [HttpPost("register")]
+    [EnableRateLimiting(AuthRateLimitOptions.PolicyName)]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<AuthResponse>> Register(
         [FromBody] RegisterRequest request,
         CancellationToken cancellationToken)
@@ -42,9 +44,11 @@ public sealed class AuthController(
 
     [AllowAnonymous]
     [HttpPost("login")]
+    [EnableRateLimiting(AuthRateLimitOptions.PolicyName)]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<AuthResponse>> Login(
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)

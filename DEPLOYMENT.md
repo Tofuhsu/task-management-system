@@ -7,7 +7,8 @@ The production image serves the compiled Vue application and the ASP.NET Core AP
 ```text
 Browser -> Render Web Service (Vue + ASP.NET Core API) -> Azure SQL Database
                      |
-                     +-> GET /health checks database connectivity
+                     +-> GET /health/live   process is up (no dependencies)
+                     +-> GET /health/ready  database connectivity (/health is an alias)
 ```
 
 The application applies pending SQL Server migrations during startup. Use a fresh database for the first deployment.
@@ -23,6 +24,8 @@ The application applies pending SQL Server migrations during startup. Use a fres
 | `Jwt__Audience` | JWT audience |
 | `Jwt__SigningKey` | Random signing key with at least 32 characters; keep secret |
 | `Jwt__ExpirationMinutes` | Token lifetime between 5 and 1440 minutes |
+| `RateLimiting__Auth__PermitLimit` | Optional. Login/register attempts per client IP per window (default 10) |
+| `RateLimiting__Auth__WindowSeconds` | Optional. Sliding-window length in seconds (default 60) |
 
 Never commit production connection strings or signing keys.
 
@@ -66,10 +69,20 @@ After Render reports a successful health check:
 2. Create, edit, complete, filter, and delete a task.
 3. Sign out, register account B, and confirm account A's tasks are not visible.
 4. Sign back in as account A and confirm its remaining data is present.
-5. Open `/health` and confirm it returns HTTP 200.
+5. Open `/health/ready` and confirm it returns HTTP 200 with `"status":"Healthy"`.
 6. Redeploy the same commit and verify account data remains present.
 
+## Rate limiting behind the proxy
+
+`render.yaml` sets `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, so the client IP used to
+partition the login/register limiter comes from the `X-Forwarded-For` value appended by
+Render's proxy. The limiter is in memory: running more than one instance multiplies the
+effective budget.
+
 ## Local production-container test
+
+The quickest path is `docker compose up --build`, which also starts SQL Server
+(see `compose.yaml` and `.env.example`). To run the image on its own:
 
 Build the image:
 
